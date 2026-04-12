@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="Book_Store_SP.DataAccess/Book_Store_SP.DataAccess.csproj" />
+  <Project Path="Book_Store_SP.Models/Book_Store_SP.Models.csproj" />
+  <Project Path="Book_Store_SP.Utility/Book_Store_SP.Utility.csproj" />
+  <Project Path="Book_Store_SP/Book_Store_SP.csproj" />
+</Solution>
