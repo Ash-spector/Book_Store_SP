@@ -9,32 +9,29 @@ function loadDataTable() {
         "ajax": {
             "url": "/Admin/Product/GetAll"
         },
+        //"lengthMenu": [[2, 4, 6, 8, 10], [2, 4, 6, 8, 10]],
+        //"pageLength": 2, 
         "columns": [
             { "data": "title", "width": "15%" },
+            { "data": "description", "width": "20%" },
             { "data": "author", "width": "15%" },
             { "data": "isbn", "width": "15%" },
-            { "data": "listPrice", "width": "10%" },
-            { "data": "categoryName", "width": "15%" },
-            { "data": "coverTypeName", "width": "15%" },
+            { "data": "price", "width": "15%" },
             {
                 "data": "id",
                 "render": function (data) {
                     return `
-                        <div class="text-center">
-                            <a href="/Admin/Product/Upsert/${data}"
-                               class="btn btn-success text-white"
-                               style="cursor:pointer; width:80px">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            &nbsp;
-                            <a onclick="Delete('/Admin/Product/Delete/${data}')"
-                               class="btn btn-danger text-white"
-                               style="cursor:pointer; width:80px">
-                                <i class="fas fa-trash-alt"></i> Delete
-                            </a>
-                        </div>`;
-                },
-                "width": "15%"
+                    <div class="text-center">
+                        <a href="/Admin/Product/Upsert/${data}" class="btn btn-info">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <a onclick=Delete("/Admin/Product/Delete/${data}") class="btn btn-danger mx-2">
+                            <i class="fas fa-trash-alt"></i> 
+                        </a>
+
+                    </div>
+                    `;
+                }
             }
         ]
     });
@@ -42,25 +39,26 @@ function loadDataTable() {
 
 function Delete(url) {
     swal({
-        title: "Are you sure?",
-        text: "You will not be able to restore the data!",
+        title: "Want to Delete Data ?",
+        text: "Delete this Product?",
         icon: "warning",
         buttons: true,
         dangerMode: true
-    }).then((willDelete) => {
-        if (willDelete) {
-            $.ajax({
-                type: "DELETE",
-                url: url,
-                success: function (data) {
-                    if (data.success) {
-                        toastr.success(data.message);
-                        dataTable.ajax.reload();
-                    } else {
-                        toastr.error(data.message);
+    })
+        .then((willDelete) => {
+            if (willDelete) {
+                $.ajax({
+                    url: url,
+                    type: "DELETE",
+                    success: function (data) {
+                        if (data.success) {
+                            toastr.success(data.message);
+                            datatable.ajax.reload();
+                        } else {
+                            toastr.error(data.message);
+                        }
                     }
-                }
-            });
-        }
-    });
+                });
+            }
+        });
 }

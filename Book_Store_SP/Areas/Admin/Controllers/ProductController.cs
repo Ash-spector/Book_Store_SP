@@ -11,13 +11,13 @@ namespace Book_Store_SP.Areas.Admin.Controllers
     [Area("Admin")]
     public class ProductController : Controller
     {
-        private readonly IUnitOfWork _unitOfWork;
-        private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly ISP_CALL _spcall;
+        private readonly IWebHostEnvironment _webHostEnvironment;
 
-        public ProductController(IUnitOfWork unitOfWork, IWebHostEnvironment hostEnvironment)
+        public ProductController(ISP_CALL spcall, IWebHostEnvironment webHostEnvironment)
         {
-            _unitOfWork = unitOfWork;
-            _hostEnvironment = hostEnvironment;
+            _spcall = spcall;
+            _webHostEnvironment = webHostEnvironment;
         }
 
         public IActionResult Index()
@@ -30,13 +30,13 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             ProductVM productVM = new ProductVM()
             {
                 Product = new Product(),
-                CategoryList = _unitOfWork.SP_CALL.List<Category>(SD.Proc_Category_GetAll)
+                CategoryList = _spcall.List<Category>(SD.Proc_Category_GetAll)
                     .Select(c => new SelectListItem
                     {
                         Text = c.Name,
                         Value = c.Id.ToString()
                     }),
-                CoverTypeList = _unitOfWork.SP_CALL.List<CoverType>(SD.Proc_CoverType_GetAll)
+                CoverTypeList = _spcall.List<CoverType>(SD.Proc_CoverType_GetAll)
                     .Select(ct => new SelectListItem
                     {
                         Text = ct.Name,
@@ -47,10 +47,9 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             if (id == null || id == 0)
                 return View(productVM);
 
-            // Edit mode
             var param = new DynamicParameters();
             param.Add("@id", id);
-            productVM.Product = _unitOfWork.SP_CALL.OneRecord<Product>(SD.Proc_Product_GetOne, param);
+            productVM.Product = _spcall.OneRecord<Product>(SD.Proc_Product_GetOne, param);
 
             if (productVM.Product == null)
                 return NotFound();
@@ -60,86 +59,140 @@ namespace Book_Store_SP.Areas.Admin.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Upsert(ProductVM obj, IFormFile? file)
+        public IActionResult Upsert(ProductVM productVM)
         {
-            if (!ModelState.IsValid)
-            {
-                obj.CategoryList = _unitOfWork.SP_CALL.List<Category>(SD.Proc_Category_GetAll)
-                    .Select(c => new SelectListItem
-                    {
-                        Text = c.Name,
-                        Value = c.Id.ToString()
-                    });
-                obj.CoverTypeList = _unitOfWork.SP_CALL.List<CoverType>(SD.Proc_CoverType_GetAll)
-                    .Select(ct => new SelectListItem
-                    {
-                        Text = ct.Name,
-                        Value = ct.Id.ToString()
-                    });
-                return View(obj);
-            }
+            ModelState.Remove("Product.ImageUrl");
+            ModelState.Remove("Product.Name");
+            ModelState.Remove("Product.Category");
+            ModelState.Remove("Product.CoverType");
 
-            // Handle image upload
-            string wwwRootPath = _hostEnvironment.WebRootPath;
-            if (file != null)
+            if (ModelState.IsValid)
             {
-                string fileName = Guid.NewGuid().ToString();
-                var uploads = Path.Combine(wwwRootPath, @"images\products");
-                var extension = Path.GetExtension(file.FileName);
+                var webRootPath = _webHostEnvironment.WebRootPath;
+                var files = HttpContext.Request.Form.Files;
 
-                // Delete old image if updating
-                if (obj.Product.ImageUrl != null)
+                if (files.Count > 0)
                 {
-                    var oldImagePath = Path.Combine(wwwRootPath, obj.Product.ImageUrl.TrimStart('\\'));
-                    if (System.IO.File.Exists(oldImagePath))
-                        System.IO.File.Delete(oldImagePath);
+                    var fileName = Guid.NewGuid().ToString();
+                    var extension = Path.GetExtension(files[0].FileName);
+                    var uploads = Path.Combine(webRootPath, "images", "products");
+
+                    if (!Directory.Exists(uploads))
+                        Directory.CreateDirectory(uploads);
+
+                    if (productVM.Product.Id != 0)
+                    {
+                        var param2 = new DynamicParameters();
+                        param2.Add("@id", productVM.Product.Id);
+                        var existing = _spcall.OneRecord<Product>(
+                            SD.Proc_Product_GetOne, param2);
+
+                        if (existing?.ImageUrl != null)
+                        {
+                            var oldPath = Path.Combine(webRootPath,
+                                existing.ImageUrl.TrimStart('\\'));
+                            if (System.IO.File.Exists(oldPath))
+                                System.IO.File.Delete(oldPath);
+                        }
+                    }
+
+                    using (var fileStream = new FileStream(
+                        Path.Combine(uploads, fileName + extension),
+                        FileMode.Create))
+                    {
+                        files[0].CopyTo(fileStream);
+                    }
+
+                    productVM.Product.ImageUrl = @"\images\products\"
+                        + fileName + extension;
+                }
+                else
+                {
+                    if (productVM.Product.Id != 0)
+                    {
+                        var param2 = new DynamicParameters();
+                        param2.Add("@id", productVM.Product.Id);
+                        var existing = _spcall.OneRecord<Product>(
+                            SD.Proc_Product_GetOne, param2);
+                        productVM.Product.ImageUrl = existing?.ImageUrl;
+                    }
                 }
 
-                using (var fileStream = new FileStream(Path.Combine(uploads, fileName + extension), FileMode.Create))
+                productVM.Product.Name = productVM.Product.Title;
+
+                var param = new DynamicParameters();
+
+                if (productVM.Product.Id == 0)
                 {
-                    file.CopyTo(fileStream);
+                    param.Add("title", productVM.Product.Title);
+                    param.Add("description", productVM.Product.Description);
+                    param.Add("author", productVM.Product.Author);      // author BEFORE isbn
+                    param.Add("isbn", productVM.Product.ISBN);          // isbn AFTER author
+                    param.Add("listPrice", productVM.Product.ListPrice);
+                    param.Add("price", productVM.Product.Price);
+                    param.Add("price50", productVM.Product.Price50);
+                    param.Add("price100", productVM.Product.Price100);
+                    param.Add("imageUrl", productVM.Product.ImageUrl);
+                    param.Add("categoryId", productVM.Product.CategoryId);
+                    param.Add("coverTypeId", productVM.Product.CoverTypeId);
+
+                    try
+                    {
+                        _spcall.Execute(SD.Proc_Product_Create, param);
+                        TempData["success"] = "Product created successfully";
+                    }
+                    catch (Exception ex)
+                    {
+                        TempData["error"] = ex.Message;
+                        System.Diagnostics.Debug.WriteLine("SP ERROR: " + ex.Message);
+                        // Reload dropdowns
+                        productVM.CategoryList = _spcall.List<Category>(SD.Proc_Category_GetAll)
+                            .Select(c => new SelectListItem { Text = c.Name, Value = c.Id.ToString() });
+                        productVM.CoverTypeList = _spcall.List<CoverType>(SD.Proc_CoverType_GetAll)
+                            .Select(ct => new SelectListItem { Text = ct.Name, Value = ct.Id.ToString() });
+                        return View(productVM);
+                    }
+                }
+                else
+                {
+                    param.Add("title", productVM.Product.Title);
+                    param.Add("description", productVM.Product.Description);
+                    param.Add("author", productVM.Product.Author);      // author BEFORE isbn
+                    param.Add("isbn", productVM.Product.ISBN);          // isbn AFTER author
+                    param.Add("listPrice", productVM.Product.ListPrice);
+                    param.Add("price", productVM.Product.Price);
+                    param.Add("price50", productVM.Product.Price50);
+                    param.Add("price100", productVM.Product.Price100);
+                    param.Add("imageUrl", productVM.Product.ImageUrl);
+                    param.Add("categoryId", productVM.Product.CategoryId);
+                    param.Add("coverTypeId", productVM.Product.CoverTypeId);
+
+                    try
+                    {
+                        _spcall.Execute(SD.Proc_Product_Update, param);
+                        TempData["success"] = "Product updated successfully";
+                    }
+                    catch (Exception ex)
+                    {
+                        TempData["error"] = ex.Message;
+                        System.Diagnostics.Debug.WriteLine("SP ERROR: " + ex.Message);
+                        productVM.CategoryList = _spcall.List<Category>(SD.Proc_Category_GetAll)
+                            .Select(c => new SelectListItem { Text = c.Name, Value = c.Id.ToString() });
+                        productVM.CoverTypeList = _spcall.List<CoverType>(SD.Proc_CoverType_GetAll)
+                            .Select(ct => new SelectListItem { Text = ct.Name, Value = ct.Id.ToString() });
+                        return View(productVM);
+                    }
                 }
 
-                obj.Product.ImageUrl = @"\images\products\" + fileName + extension;
+                return RedirectToAction(nameof(Index));
             }
 
-            var param = new DynamicParameters();
+            productVM.CategoryList = _spcall.List<Category>(SD.Proc_Category_GetAll)
+                .Select(c => new SelectListItem { Text = c.Name, Value = c.Id.ToString() });
+            productVM.CoverTypeList = _spcall.List<CoverType>(SD.Proc_CoverType_GetAll)
+                .Select(ct => new SelectListItem { Text = ct.Name, Value = ct.Id.ToString() });
 
-            if (obj.Product.Id == 0)
-            {
-                param.Add("@title", obj.Product.Title);
-                param.Add("@description", obj.Product.Description);
-                param.Add("@isbn", obj.Product.ISBN);
-                param.Add("@author", obj.Product.Author);
-                param.Add("@listPrice", obj.Product.ListPrice);
-                param.Add("@price", obj.Product.Price);
-                param.Add("@price50", obj.Product.Price50);
-                param.Add("@price100", obj.Product.Price100);
-                param.Add("@imageUrl", obj.Product.ImageUrl);
-                param.Add("@categoryId", obj.Product.CategoryId);
-                param.Add("@coverTypeId", obj.Product.CoverTypeId);
-                _unitOfWork.SP_CALL.Execute(SD.Proc_Product_Create, param);
-                TempData["success"] = "Product created successfully";
-            }
-            else
-            {
-                param.Add("@id", obj.Product.Id);
-                param.Add("@title", obj.Product.Title);
-                param.Add("@description", obj.Product.Description);
-                param.Add("@isbn", obj.Product.ISBN);
-                param.Add("@author", obj.Product.Author);
-                param.Add("@listPrice", obj.Product.ListPrice);
-                param.Add("@price", obj.Product.Price);
-                param.Add("@price50", obj.Product.Price50);
-                param.Add("@price100", obj.Product.Price100);
-                param.Add("@imageUrl", obj.Product.ImageUrl);
-                param.Add("@categoryId", obj.Product.CategoryId);
-                param.Add("@coverTypeId", obj.Product.CoverTypeId);
-                _unitOfWork.SP_CALL.Execute(SD.Proc_Product_Update, param);
-                TempData["success"] = "Product updated successfully";
-            }
-
-            return RedirectToAction(nameof(Index));
+            return View(productVM);
         }
 
         #region API Calls
@@ -147,7 +200,7 @@ namespace Book_Store_SP.Areas.Admin.Controllers
         [HttpGet]
         public IActionResult GetAll()
         {
-            var products = _unitOfWork.SP_CALL.List<Product>(SD.Proc_Product_GetAll);
+            var products = _spcall.List<Product>(SD.Proc_Product_GetAll);
             return Json(new { data = products });
         }
 
@@ -157,21 +210,21 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             var param = new DynamicParameters();
             param.Add("@id", id);
 
-            var product = _unitOfWork.SP_CALL.OneRecord<Product>(SD.Proc_Product_GetOne, param);
+            var product = _spcall.OneRecord<Product>(SD.Proc_Product_GetOne, param);
 
             if (product == null)
                 return Json(new { success = false, message = "Unable to delete!" });
 
-            // Delete image if exists
-            var wwwRootPath = _hostEnvironment.WebRootPath;
             if (product.ImageUrl != null)
             {
-                var imagePath = Path.Combine(wwwRootPath, product.ImageUrl.TrimStart('\\'));
+                var webRootPath = _webHostEnvironment.WebRootPath;
+                var imagePath = Path.Combine(webRootPath,
+                    product.ImageUrl.TrimStart('\\'));
                 if (System.IO.File.Exists(imagePath))
                     System.IO.File.Delete(imagePath);
             }
 
-            _unitOfWork.SP_CALL.Execute(SD.Proc_Product_Delete, param);
+            _spcall.Execute(SD.Proc_Product_Delete, param);
             return Json(new { success = true, message = "Product deleted successfully" });
         }
 

@@ -7,41 +7,41 @@ using Microsoft.AspNetCore.Mvc;
 namespace Book_Store_SP.Areas.Admin.Controllers
 {
     [Area("Admin")]
-    public class CoverTypeController : Controller
+    public class CategoryController : Controller
     {
-        private readonly IUnitOfWork _unitOfWork;
+        private readonly ISP_CALL _spcall;
 
-        public CoverTypeController(IUnitOfWork unitOfWork)
+        public CategoryController(ISP_CALL spcall)
         {
-            _unitOfWork = unitOfWork;
+            _spcall = spcall;
         }
 
         public IActionResult Index()
         {
-            var coverTypes = _unitOfWork.SP_CALL.List<CoverType>(SD.Proc_CoverType_GetAll);
-            return View(coverTypes);
+            var categories = _spcall.List<Category>(SD.Proc_Category_GetAll);
+            return View(categories);
         }
 
         public IActionResult Upsert(int? id)
         {
-            CoverType coverType = new CoverType();
+            Category category = new Category();
 
             if (id == null || id == 0)
-                return View(coverType);
+                return View(category);
 
             var param = new DynamicParameters();
             param.Add("@id", id);
-            coverType = _unitOfWork.SP_CALL.OneRecord<CoverType>(SD.Proc_CoverType_GetOne, param);
+            category = _spcall.OneRecord<Category>(SD.Proc_Category_GetOne, param);
 
-            if (coverType == null)
+            if (category == null)
                 return NotFound();
 
-            return View(coverType);
+            return View(category);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult Upsert(CoverType obj)
+        public IActionResult Upsert(Category obj)
         {
             if (!ModelState.IsValid)
                 return View(obj);
@@ -51,15 +51,15 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             if (obj.Id == 0)
             {
                 param.Add("@name", obj.Name);
-                _unitOfWork.SP_CALL.Execute(SD.Proc_CoverType_Create, param);
-                TempData["success"] = "CoverType created successfully";
+                _spcall.Execute(SD.Proc_Category_Create, param);
+                TempData["success"] = "Category created successfully";
             }
             else
             {
                 param.Add("@id", obj.Id);
                 param.Add("@name", obj.Name);
-                _unitOfWork.SP_CALL.Execute(SD.Proc_CoverType_Update, param);
-                TempData["success"] = "CoverType updated successfully";
+                _spcall.Execute(SD.Proc_Category_Update, param);
+                TempData["success"] = "Category updated successfully";
             }
 
             return RedirectToAction(nameof(Index));
@@ -70,8 +70,8 @@ namespace Book_Store_SP.Areas.Admin.Controllers
         [HttpGet]
         public IActionResult GetAll()
         {
-            var coverTypes = _unitOfWork.SP_CALL.List<CoverType>(SD.Proc_CoverType_GetAll);
-            return Json(new { data = coverTypes });
+            var categories = _spcall.List<Category>(SD.Proc_Category_GetAll);
+            return Json(new { data = categories });
         }
 
         [HttpDelete]
@@ -80,12 +80,12 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             var param = new DynamicParameters();
             param.Add("@id", id);
 
-            var coverType = _unitOfWork.SP_CALL.OneRecord<CoverType>(SD.Proc_CoverType_GetOne, param);
+            var category = _spcall.OneRecord<Category>(SD.Proc_Category_GetOne, param);
 
-            if (coverType == null)
+            if (category == null)
                 return Json(new { success = false, message = "Unable to delete!" });
 
-            _unitOfWork.SP_CALL.Execute(SD.Proc_CoverType_Delete, param);
+            _spcall.Execute(SD.Proc_Category_Delete, param);
             return Json(new { success = true, message = "Delete successful" });
         }
 

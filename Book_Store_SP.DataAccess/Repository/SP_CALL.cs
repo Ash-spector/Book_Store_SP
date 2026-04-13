@@ -19,6 +19,7 @@ namespace Book_Store_SP.DataAccess.Repository
         {
             _context = context;
             ConnectionString = _context.Database.GetDbConnection().ConnectionString;
+            System.Diagnostics.Debug.WriteLine("=== CONNECTION STRING: " + ConnectionString);
         }
 
         public void Dispose()
