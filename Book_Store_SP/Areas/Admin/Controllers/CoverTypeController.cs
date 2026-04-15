@@ -16,6 +16,7 @@ namespace Book_Store_SP.Areas.Admin.Controllers
             _spcall = spcall;
         }
 
+        // ✅ SERVER-SIDE DATA LOADING
         public IActionResult Index()
         {
             var categories = _spcall.List<Category>(SD.Proc_Category_GetAll);
@@ -30,7 +31,8 @@ namespace Book_Store_SP.Areas.Admin.Controllers
                 return View(category);
 
             var param = new DynamicParameters();
-            param.Add("@id", id);
+            param.Add("id", id);
+
             category = _spcall.OneRecord<Category>(SD.Proc_Category_GetOne, param);
 
             if (category == null)
@@ -50,14 +52,14 @@ namespace Book_Store_SP.Areas.Admin.Controllers
 
             if (obj.Id == 0)
             {
-                param.Add("@name", obj.Name);
+                param.Add("name", obj.Name);
                 _spcall.Execute(SD.Proc_Category_Create, param);
                 TempData["success"] = "Category created successfully";
             }
             else
             {
-                param.Add("@id", obj.Id);
-                param.Add("@name", obj.Name);
+                param.Add("id", obj.Id);
+                param.Add("name", obj.Name);
                 _spcall.Execute(SD.Proc_Category_Update, param);
                 TempData["success"] = "Category updated successfully";
             }
@@ -78,7 +80,7 @@ namespace Book_Store_SP.Areas.Admin.Controllers
         public IActionResult Delete(int id)
         {
             var param = new DynamicParameters();
-            param.Add("@id", id);
+            param.Add("id", id);
 
             var category = _spcall.OneRecord<Category>(SD.Proc_Category_GetOne, param);
 
@@ -86,6 +88,7 @@ namespace Book_Store_SP.Areas.Admin.Controllers
                 return Json(new { success = false, message = "Unable to delete!" });
 
             _spcall.Execute(SD.Proc_Category_Delete, param);
+
             return Json(new { success = true, message = "Delete successful" });
         }
 

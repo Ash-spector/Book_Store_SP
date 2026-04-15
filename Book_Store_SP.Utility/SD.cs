@@ -23,7 +23,7 @@
         public const string Proc_CoverType_GetAll = "GetCoverTypes";
 
         // Product SPs
-        public const string Proc_Product_Create = "Product";
+        public const string Proc_Product_Create = "CreateProduct";
         public const string Proc_Product_Update = "UpdateProduct";
         public const string Proc_Product_Delete = "DeleteProduct";
         public const string Proc_Product_GetOne = "GetProduct";
